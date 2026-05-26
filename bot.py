@@ -1,18 +1,16 @@
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
+from datetime import datetime
 
 BOT_TOKEN = "6806483944:AAH9iZUSbha94raSegHC1SpZfH5UVrI4nrU"
 
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot is running successfully ✅")
+    await update.message.reply_text("Bot Active ✅")
 
 
 async def time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    from datetime import datetime
-
     now = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-    await update.message.reply_text(f"Current Date & Time:\n{now}")
+    await update.message.reply_text(now)
 
 
 def main():
