@@ -7,6 +7,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
+
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -22,140 +23,149 @@ BOT_TOKEN = "6806483944:AAH9iZUSbha94raSegHC1SpZfH5UVrI4nrU"
 EMAIL = "mdreajul9999@gmail.com"
 
 APP_PASSWORD = "mqlt unop onvb imwk"
+
 # =========================
 # STATES
 # =========================
 
-NAME, EMAIL_ID, MESSAGE, DATE_TIME = range(4)
+NAME, RECEIVER, SUBJECT, MESSAGE, DATETIME = range(5)
+
+user_data_store = {}
 
 # =========================
 # START
 # =========================
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Welcome!\n\nSend your name:"
+    keyboard = [["Send Email"]]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
     )
-    return NAME
+
+    await update.message.reply_text(
+        "Welcome to Telegram Email Bot\n\nClick 'Send Email'",
+        reply_markup=reply_markup
+    )
 
 # =========================
 # NAME
 # =========================
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Enter your name:")
+    return NAME
+
+async def save_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text
-
-    await update.message.reply_text(
-        "Send receiver email:"
-    )
-    return EMAIL_ID
+    await update.message.reply_text("Receiver Email:")
+    return RECEIVER
 
 # =========================
-# EMAIL
+# RECEIVER
 # =========================
 
-async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def save_receiver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["receiver"] = update.message.text
+    await update.message.reply_text("Email Subject:")
+    return SUBJECT
 
-    await update.message.reply_text(
-        "Send your message:"
-    )
+# =========================
+# SUBJECT
+# =========================
+
+async def save_subject(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["subject"] = update.message.text
+    await update.message.reply_text("Write your message:")
     return MESSAGE
 
 # =========================
 # MESSAGE
 # =========================
 
-async def get_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def save_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["message"] = update.message.text
 
     await update.message.reply_text(
-        "Send date & time like:\n\n2026-05-27 10:30"
-    )
-    return DATE_TIME
-
-# =========================
-# DATE & TIME
-# =========================
-
-async def get_datetime(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    date_time_text = update.message.text
-
-    try:
-        send_time = datetime.strptime(date_time_text, "%Y-%m-%d %H:%M")
-
-    except:
-        await update.message.reply_text(
-            "Wrong format!\nUse:\n2026-05-27 10:30"
-        )
-        return DATE_TIME
-
-    now = datetime.now()
-
-    delay = (send_time - now).total_seconds()
-
-    if delay <= 0:
-        await update.message.reply_text(
-            "Time already passed."
-        )
-        return DATE_TIME
-
-    await update.message.reply_text(
-        f"Email scheduled successfully!\n\nWill send at:\n{send_time}"
+        "Enter sending date & time\n\nFormat:\n2026-05-27 10:30"
     )
 
-    asyncio.create_task(
-        schedule_email(
-            context.user_data["receiver"],
-            context.user_data["message"],
-            context.user_data["name"],
-            delay,
-        )
-    )
-
-    return ConversationHandler.END
+    return DATETIME
 
 # =========================
 # SEND EMAIL
 # =========================
 
-async def schedule_email(receiver, message, sender_name, delay):
-
-    await asyncio.sleep(delay)
+async def schedule_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_datetime = update.message.text
 
     try:
+        send_time = datetime.strptime(user_datetime, "%Y-%m-%d %H:%M")
 
-        msg = MIMEMultipart()
+        now = datetime.now()
 
-        msg["From"] = EMAIL
-        msg["To"] = receiver
-        msg["Subject"] = "Message From Telegram Bot"
+        delay = (send_time - now).total_seconds()
 
-        body = f"""
+        if delay <= 0:
+            await update.message.reply_text(
+                "Time already passed."
+            )
+            return ConversationHandler.END
+
+        asyncio.create_task(
+            delayed_email(context.user_data, delay)
+        )
+
+        await update.message.reply_text(
+            f"Email scheduled successfully!\n\nSending at: {send_time}"
+        )
+
+    except:
+        await update.message.reply_text(
+            "Wrong format.\nUse:\n2026-05-27 10:30"
+        )
+
+    return ConversationHandler.END
+
+# =========================
+# DELAYED EMAIL
+# =========================
+
+async def delayed_email(data, delay):
+    await asyncio.sleep(delay)
+
+    sender_name = data["name"]
+    receiver = data["receiver"]
+    subject = data["subject"]
+    message_text = data["message"]
+
+    msg = MIMEMultipart()
+
+    msg["From"] = EMAIL
+    msg["To"] = receiver
+    msg["Subject"] = subject
+
+    body = f"""
 Sender: {sender_name}
 
 Message:
-{message}
+{message_text}
 """
 
-        msg.attach(MIMEText(body, "plain"))
+    msg.attach(MIMEText(body, "plain"))
 
+    try:
         server = smtplib.SMTP("smtp.gmail.com", 587)
-
         server.starttls()
 
         server.login(EMAIL, APP_PASSWORD)
 
-        server.sendmail(
-            EMAIL,
-            receiver,
-            msg.as_string()
-        )
+        server.send_message(msg)
 
         server.quit()
 
-        print("Email Sent Successfully")
+        print("Email sent successfully!")
 
     except Exception as e:
         print("Error:", e)
@@ -165,43 +175,76 @@ Message:
 # =========================
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Cancelled."
-    )
+    await update.message.reply_text("Cancelled.")
     return ConversationHandler.END
 
 # =========================
 # MAIN
 # =========================
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+def main():
 
-conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("start", start)],
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-    states={
-        NAME: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, get_name)
+    conv_handler = ConversationHandler(
+        entry_points=[
+            MessageHandler(
+                filters.TEXT & ~filters.COMMAND,
+                get_name
+            )
         ],
 
-        EMAIL_ID: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)
+        states={
+
+            NAME: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    save_name
+                )
+            ],
+
+            RECEIVER: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    save_receiver
+                )
+            ],
+
+            SUBJECT: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    save_subject
+                )
+            ],
+
+            MESSAGE: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    save_message
+                )
+            ],
+
+            DATETIME: [
+                MessageHandler(
+                    filters.TEXT & ~filters.COMMAND,
+                    schedule_email
+                )
+            ],
+        },
+
+        fallbacks=[
+            CommandHandler("cancel", cancel)
         ],
+    )
 
-        MESSAGE: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, get_message)
-        ],
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(conv_handler)
 
-        DATE_TIME: [
-            MessageHandler(filters.TEXT & ~filters.COMMAND, get_datetime)
-        ],
-    },
+    print("Bot running...")
 
-    fallbacks=[CommandHandler("cancel", cancel)],
-)
+    app.run_polling()
 
-app.add_handler(conv_handler)
+# =========================
 
-print("Bot Running...")
-
-app.run_polling()
+if __name__ == "__main__":
+    main()
