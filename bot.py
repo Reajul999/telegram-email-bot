@@ -9,7 +9,7 @@ from telegram.ext import (
 
 from datetime import datetime
 
-BOT_TOKEN = "YOUR_BOT_TOKEN"
+BOT_TOKEN = "6806483944:AAH9iZUSbha94raSegHC1SpZfH5UVrI4nrU"
 
 # start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
